@@ -1,0 +1,21 @@
+#!/usr/bin/python
+import json
+import requests
+
+delimiter = ' '
+github_token = ''
+
+response = requests.get('https://api.github.com/notifications', auth=('token', github_token))
+notifications = json.loads(response.text)
+print(len(notifications))
+for notification in notifications:
+  repo = notification["repository"]["name"]
+  title = notification["subject"]["title"]
+  kind = notification["subject"]["type"]
+  url = notification["subject"]["url"].replace("api.github.com/repos", "github.com")
+  label = repo + delimiter + kind + delimiter + title
+  print("----")
+  print(label) 
+  print(url)
+  print("----")
+
