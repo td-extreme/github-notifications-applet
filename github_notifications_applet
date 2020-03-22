@@ -1,0 +1,85 @@
+#!/usr/bin/python
+import os
+import json
+import requests
+from gi.repository import Gtk as gtk, AppIndicator3 as appindicator
+from os.path import expanduser
+home = expanduser("~")
+github_token_file = open(home + "/.tokens/github/access.token", 'r')
+github_token = github_token_file.readline().rstrip()
+github_token_file.close()
+
+icon = "git"
+delimiter = " "
+indicator = appindicator.Indicator.new("customtray", icon, appindicator.IndicatorCategory.APPLICATION_STATUS)
+
+def main():
+  indicator.set_status(appindicator.IndicatorStatus.ACTIVE)
+  update_menu()
+  gtk.main()
+
+def update_menu():
+  indicator.set_menu(menu())
+
+def menu():
+  menu = gtk.Menu()
+
+  showall = gtk.MenuItem('Show All')
+  showall.connect('activate', open_url, "https://github.com/notifications/beta")
+  menu.append(showall)
+
+  refresh = gtk.MenuItem('Refresh')
+  refresh.connect('activate', refresh_menu)
+  menu.append(refresh)
+
+  add_separator_menu_item(menu)
+
+  for notification in get_notifications():
+    item = gtk.MenuItem(notification_label(notification))
+    item.connect('activate', open_notification, notification)
+    menu.append(item)
+
+  add_separator_menu_item(menu)
+
+  exittray = gtk.MenuItem('Close')
+  exittray.connect('activate', quit)
+  menu.append(exittray)
+
+  menu.show_all()
+  return menu
+
+def add_separator_menu_item(menu):
+  menu_item = gtk.SeparatorMenuItem()
+  menu.append(menu_item)
+
+def get_notifications():
+  response = requests.get('https://api.github.com/notifications', auth=('token', github_token))
+  return json.loads(response.text)
+
+def notification_label(notification):
+  repo = notification["repository"]["name"]
+  title = notification["subject"]["title"]
+  kind = notification["subject"]["type"]
+  return repo + delimiter + kind + delimiter + title
+
+def notification_url(notification):
+  return notification["subject"]["url"].replace("api.github.com/repos", "github.com").replace("/pulls/", "/pull/")
+
+def refresh_menu(_):
+  update_menu()
+
+def open_notification(_, notification):
+  open_url("", notification_url(notification))
+  mark_as_read(notification)
+  update_menu()
+
+def open_url(_, url):
+  os.spawnlp(os.P_NOWAIT, 'xdg-open', 'xdg-open', url)
+
+def mark_as_read(notification):
+  requests.patch('https://api.github.com/notifications/threads/' + notification["id"], auth=('token', github_token))
+
+def quit(_):
+  gtk.main_quit()
+if __name__ == "__main__":
+  main()
